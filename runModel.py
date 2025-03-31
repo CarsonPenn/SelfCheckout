@@ -1,25 +1,39 @@
-# You must be in the aconda environment to run the code.
 from ultralytics import YOLO
 import cv2
 
-# Load the YOLO model
-model = YOLO('my_model2.pt')  
+def runModel(model_path='my_model2.pt', source='0', show=True, save=True):
+    """
+    Runs the yolo model, etheir from the webcam or a file we provide in "source"
 
-# Choose the source: 0 for webcam, or a file path for an image/video
-# You will get a breif pop up then the image or video will be saved in the runs/detect folder.
-# source = '0'
-source = 'test_files/3bb65d7b-IMG_8343.jpg'
+    Args:
+        model_path (str): Path to the YOLO model file (.pt).
+        source (str or int): Source of the input. 0 for webcam, or a file path for an image/video.
+        show (bool): Whether to display the predictions in a pop-up window.
+        save (bool): Whether to save the predictions to the runs/detect folder.
+    """
 
-# Run YOLO predictions
-results = model.predict(source=source, show=True, save=True)
+    # Load the YOLO model
+    model = YOLO(model_path)
 
-# If using a webcam, keep it open until 'q' is pressed
-# When you run the webcam you don't see a pop up yet, it will have the output in the terminal. 
-# You will find the video in the runs/detect folder.
-if source == 0:
-    while True:
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    cv2.destroyAllWindows()
+    # Run YOLO predictions
+    results = model.predict(source=source, show=show, save=save)
 
-print("Prediction complete!")
+    # If using a webcam, keep it open until 'q' is pressed
+    if source == '0' or source == 0: 
+        cap = cv2.VideoCapture(0) # Open the webcam
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            results = model.predict(source=frame, show=show, save=False) 
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        cap.release()
+        cv2.destroyAllWindows()
+
+    print("Prediction complete!")
+
+# Example usage:
+runModel(source='0')
