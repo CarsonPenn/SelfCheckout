@@ -6,6 +6,8 @@ quit
 
 '''
 import tkinter as tk
+from display import *
+from runModel import *
 
 
 class Menu:
@@ -36,10 +38,10 @@ class Menu:
         self.root.mainloop()
 
     def StartScanner(self):
-        print("It's starting!!!")
+        runModel(source=0)
 
     def ShowTransactions(self):
-        print("These are transactions woooo!!")
+        display_transactions()
 
     def DisplaySettings(self):
         print("Look at all these cool settings!")

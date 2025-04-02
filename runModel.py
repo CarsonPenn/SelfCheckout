@@ -1,5 +1,8 @@
 from ultralytics import YOLO
 import cv2
+import uuid
+from pathlib import Path
+from db_utils import *
 
 def runModel(model_path='my_model2.pt', source='0', show=True, save=True):
     """
@@ -14,26 +17,58 @@ def runModel(model_path='my_model2.pt', source='0', show=True, save=True):
 
     # Load the YOLO model
     model = YOLO(model_path)
+    transaction_id = str(uuid.uuid4())[:8]
 
-    # Run YOLO predictions
-    results = model.predict(source=source, show=show, save=save)
+    results = model.predict(
+        source=source,
+        show=show,
+        save=save,
+        project='outputs',
+        name=transaction_id
+    )
 
-    # If using a webcam, keep it open until 'q' is pressed
-    if source == '0' or source == 0: 
-        cap = cv2.VideoCapture(0) # Open the webcam
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            results = model.predict(source=frame, show=show, save=False) 
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+    all_detections = []
+    for r in results:
+        names = r.names
+        image_path = None
+        if save and r.save_dir:
+            image_path = Path(r.save_dir) / Path(r.path).name
 
-        cap.release()
-        cv2.destroyAllWindows()
+        for box in r.boxes:
+            class_id = int(box.cls[0])
+            label = names[class_id]
+            confidence = float(box.conf[0])
+            x_min, y_min, x_max, y_max = map(int, box.xyxy[0])
 
-    print("Prediction complete!")
+            all_detections.append({
+                "label": label,
+                "confidence": confidence,
+                "x_min": x_min,
+                "y_min": y_min,
+                "x_max": x_max,
+                "y_max": y_max
+            })
 
-# Example usage:
-runModel(source='0')
+    insert_detection_data(transaction_id, all_detections, str(image_path) if image_path else None)
+    insert_receipt(transaction_id, all_detections) # This is just for convience. This would later be changed to get information from the actually scanned items
+
+    detected_labels = set(d["label"] for d in all_detections)
+    receipt_labels = set(get_receipt(transaction_id))
+
+    # Find mismatches
+    extra_in_detected = detected_labels - receipt_labels
+    extra_in_receipt = receipt_labels - detected_labels
+
+    for label in extra_in_detected:
+        insert_discrepancy(transaction_id, f"Detected '{label}' not in receipt")
+
+    for label in extra_in_receipt:
+        insert_discrepancy(transaction_id, f"Receipt item '{label}' not detected by YOLO")
+
+
+    print("✅ YOLO prediction and DB insert complete.")
+
+# Example usage
+if __name__ == "__main__":
+    runModel(source='test_files/group1.jpg')  # Or 0 for webcam
